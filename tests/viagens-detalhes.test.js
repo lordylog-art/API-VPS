@@ -224,6 +224,22 @@ test('createGreenmileLocalClient.getRouteBundleByKey usa fallback de routeDetail
         };
       }
 
+      if (url.includes('/Stop/STOP-1/Detail')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            id: 'STOP-1',
+            key: 'STOPKEY-1',
+            location: {
+              key: 'CLI-1',
+              description: 'Cliente fallback',
+            },
+          }),
+        };
+      }
+
       if (url.includes('/Order/restrictions?criteria=')) {
         return {
           status: 200,
@@ -324,6 +340,22 @@ test('createGreenmileLocalClient.getRouteBundleByKey preserva bundle quando Orde
         };
       }
 
+      if (url.includes('/Stop/STOP-1/Detail')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            id: 'STOP-1',
+            key: 'STOPKEY-1',
+            location: {
+              key: 'CLI-1',
+              description: 'Cliente 1',
+            },
+          }),
+        };
+      }
+
       if (url.includes('/Order/restrictions?criteria=')) {
         return {
           status: 500,
@@ -349,6 +381,126 @@ test('createGreenmileLocalClient.getRouteBundleByKey preserva bundle quando Orde
   assert.equal(bundle.stops.length, 1);
   assert.deepEqual(bundle.stops[0].orders, { content: [] });
   assert.match(bundle.stops[0].orderError || '', /Order\/restrictions/i);
+});
+
+test('createGreenmileLocalClient.getRouteBundleByKey enriquece stop com Stop/Detail e usa signatureTarget correto', async () => {
+  const calls = [];
+  const client = createGreenmileLocalClient({
+    username: 'operacao',
+    password: 'segredo',
+    config: {
+      baseUrl: 'https://3coracoes.greenmile.com',
+      module: 'LIVE',
+    },
+    fetchImpl: async (url) => {
+      calls.push(url);
+
+      if (url.endsWith('/login')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: {
+            get: (name) => (String(name).toLowerCase() === 'set-cookie' ? 'JSESSIONID=abc123; Path=/' : null),
+          },
+          text: async () => JSON.stringify({
+            analyticsToken: { access_token: 'token-123', expires_in: 180 },
+            jsessionid: 'abc123',
+          }),
+        };
+      }
+
+      if (url.includes('/RouteView/Summary?criteria=')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            content: [{
+              route: { id: 777, key: '6103048379' },
+            }],
+          }),
+        };
+      }
+
+      if (url.includes('/Route/restrictions?criteria=')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            stopView: [
+              {
+                stop: { id: 'STOP-1', key: 'STOPKEY-1', description: 'Cliente 1' },
+              },
+            ],
+          }),
+        };
+      }
+
+      if (url.includes('/StopView/restrictions?criteria=')) {
+        return {
+          status: 500,
+          ok: false,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({ errorMessages: [{ resource: { value: 'StopView indisponível' } }] }),
+        };
+      }
+
+      if (url.includes('/Stop/STOP-1/Detail')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            id: 'STOP-1',
+            key: 'STOPKEY-DETAIL',
+            location: {
+              id: 'LOC-1',
+              key: 'CLIENTE-ASSINATURA',
+              description: 'Cliente enriquecido',
+            },
+            hasSignature: true,
+          }),
+        };
+      }
+
+      if (url.includes('/Order/restrictions?criteria=')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({ content: [] }),
+        };
+      }
+
+      if (url.includes('/Route/777/Stop/CLIENTE-ASSINATURA/Signature')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            stopSignature: { name: 'Recebedor' },
+          }),
+        };
+      }
+
+      throw new Error('URL inesperada no teste: ' + url);
+    },
+  });
+
+  const bundle = await client.getRouteBundleByKey('6103048379', {
+    includeOrders: true,
+    includeSignatures: true,
+    includeStopDetails: false,
+    maxResults: 1,
+  });
+
+  assert.equal(bundle.stops[0].locationKey, 'CLIENTE-ASSINATURA');
+  assert.equal(bundle.stops[0].locationName, 'Cliente enriquecido');
+  assert.equal(bundle.stops[0].signatureTarget, 'CLIENTE-ASSINATURA');
+  assert.equal(bundle.stops[0].signature.stopSignature.name, 'Recebedor');
+  assert.ok(calls.some((url) => url.includes('/Stop/STOP-1/Detail')));
+  assert.ok(calls.some((url) => url.includes('/Route/777/Stop/CLIENTE-ASSINATURA/Signature')));
 });
 
 // ─── Testes do router Express (integração com request/response stubs) ────────

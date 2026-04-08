@@ -433,6 +433,20 @@ function createGreenmileLocalClient(options = {}) {
     }));
   }
 
+  async function getStopDetails(stopIds) {
+    return Promise.all((stopIds || []).filter(Boolean).map((stopId) => (
+      request(
+        '/Stop/' + encodeURIComponent(String(stopId)) + '/Detail',
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json;charset=utf-8',
+          },
+        }
+      )
+    )));
+  }
+
   async function getRouteStopSignature(routeId, stopId) {
     return request(
       '/Route/' + encodeURIComponent(String(routeId)) + '/Stop/' + encodeURIComponent(String(stopId)) + '/Signature',
@@ -472,6 +486,15 @@ function createGreenmileLocalClient(options = {}) {
       stopKey: stop && stop.key ? stop.key : null,
     }));
 
+    const stopsWithId = enrichedStops.filter((item) => !!item.stopId);
+
+    if ((optionsArg.includeStopDetails !== false || optionsArg.includeSignatures) && stopsWithId.length) {
+      const detailResponses = await getStopDetails(stopsWithId.map((item) => item.stopId));
+      stopsWithId.forEach((item, index) => {
+        item.detail = detailResponses[index];
+      });
+    }
+
     enrichedStops.forEach((item) => {
       if (item.context) return;
       item.context = buildStopContext(item.stop, item.detail);
@@ -483,17 +506,17 @@ function createGreenmileLocalClient(options = {}) {
     });
 
     if (optionsArg.includeOrders !== false) {
-      const validStopIds = enrichedStops.filter((item) => item.stopId).map((item) => item.stopId);
+      const validStopIds = stopsWithId.map((item) => item.stopId);
       try {
         const orderResponses = await getOrdersByStopIds(validStopIds);
         let orderIndex = 0;
-        enrichedStops.forEach((item) => {
+        stopsWithId.forEach((item) => {
           if (!item.stopId) return;
           item.orders = orderResponses[orderIndex];
           orderIndex += 1;
         });
       } catch (err) {
-        enrichedStops.forEach((item) => {
+        stopsWithId.forEach((item) => {
           if (!item.stopId) return;
           item.orders = { content: [] };
           item.orderError = err && err.message ? err.message : String(err);
@@ -502,7 +525,7 @@ function createGreenmileLocalClient(options = {}) {
     }
 
     if (optionsArg.includeSignatures) {
-      await Promise.all(enrichedStops.map(async (item) => {
+      await Promise.all(stopsWithId.map(async (item) => {
         if (!item.stopId) return;
         try {
           item.signature = await getRouteStopSignature(routeId, item.signatureTarget || item.stopKey || item.stopId);
