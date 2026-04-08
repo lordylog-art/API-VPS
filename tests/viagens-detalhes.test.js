@@ -258,6 +258,99 @@ test('createGreenmileLocalClient.getRouteBundleByKey usa fallback de routeDetail
     'deve tentar StopView antes do fallback');
 });
 
+test('createGreenmileLocalClient.getRouteBundleByKey preserva bundle quando Order/restrictions falha com 500', async () => {
+  const client = createGreenmileLocalClient({
+    username: 'operacao',
+    password: 'segredo',
+    config: {
+      baseUrl: 'https://3coracoes.greenmile.com',
+      module: 'LIVE',
+    },
+    fetchImpl: async (url) => {
+      if (url.endsWith('/login')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: {
+            get: (name) => (String(name).toLowerCase() === 'set-cookie' ? 'JSESSIONID=abc123; Path=/' : null),
+          },
+          text: async () => JSON.stringify({
+            analyticsToken: { access_token: 'token-123', expires_in: 180 },
+            jsessionid: 'abc123',
+          }),
+        };
+      }
+
+      if (url.includes('/RouteView/Summary?criteria=')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            content: [{
+              route: { id: 555, key: '6103048379' },
+            }],
+          }),
+        };
+      }
+
+      if (url.includes('/Route/restrictions?criteria=')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            stopView: [
+              {
+                stop: { id: 'STOP-1', key: 'STOPKEY-1', description: 'Cliente 1' },
+                location: { key: 'CLI-1', description: 'Cliente 1' },
+              },
+            ],
+          }),
+        };
+      }
+
+      if (url.includes('/StopView/restrictions?criteria=')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            content: [{
+              stop: { id: 'STOP-1', key: 'STOPKEY-1', description: 'Cliente 1' },
+              location: { key: 'CLI-1', description: 'Cliente 1' },
+            }],
+          }),
+        };
+      }
+
+      if (url.includes('/Order/restrictions?criteria=')) {
+        return {
+          status: 500,
+          ok: false,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            errorMessages: [{ resource: { value: 'Restrição violada em orders' } }],
+          }),
+        };
+      }
+
+      throw new Error('URL inesperada no teste: ' + url);
+    },
+  });
+
+  const bundle = await client.getRouteBundleByKey('6103048379', {
+    includeOrders: true,
+    includeSignatures: false,
+    maxResults: 1,
+  });
+
+  assert.equal(bundle.routeKey, '6103048379');
+  assert.equal(bundle.stops.length, 1);
+  assert.deepEqual(bundle.stops[0].orders, { content: [] });
+  assert.match(bundle.stops[0].orderError || '', /Order\/restrictions/i);
+});
+
 // ─── Testes do router Express (integração com request/response stubs) ────────
 
 function makeRes() {

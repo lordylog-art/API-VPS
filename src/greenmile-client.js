@@ -484,13 +484,21 @@ function createGreenmileLocalClient(options = {}) {
 
     if (optionsArg.includeOrders !== false) {
       const validStopIds = enrichedStops.filter((item) => item.stopId).map((item) => item.stopId);
-      const orderResponses = await getOrdersByStopIds(validStopIds);
-      let orderIndex = 0;
-      enrichedStops.forEach((item) => {
-        if (!item.stopId) return;
-        item.orders = orderResponses[orderIndex];
-        orderIndex += 1;
-      });
+      try {
+        const orderResponses = await getOrdersByStopIds(validStopIds);
+        let orderIndex = 0;
+        enrichedStops.forEach((item) => {
+          if (!item.stopId) return;
+          item.orders = orderResponses[orderIndex];
+          orderIndex += 1;
+        });
+      } catch (err) {
+        enrichedStops.forEach((item) => {
+          if (!item.stopId) return;
+          item.orders = { content: [] };
+          item.orderError = err && err.message ? err.message : String(err);
+        });
+      }
     }
 
     if (optionsArg.includeSignatures) {
