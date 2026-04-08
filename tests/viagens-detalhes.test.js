@@ -150,6 +150,114 @@ test('createGreenmileLocalClient.login envia form-urlencoded e captura analytics
   assert.equal(auth.cookie, 'JSESSIONID=abc123');
 });
 
+test('createGreenmileLocalClient.getRouteBundleByKey usa fallback de routeDetails quando StopView falha com 500', async () => {
+  const calls = [];
+  const client = createGreenmileLocalClient({
+    username: 'operacao',
+    password: 'segredo',
+    config: {
+      baseUrl: 'https://3coracoes.greenmile.com',
+      module: 'LIVE',
+    },
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+
+      if (url.endsWith('/login')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: {
+            get: (name) => (String(name).toLowerCase() === 'set-cookie' ? 'JSESSIONID=abc123; Path=/' : null),
+          },
+          text: async () => JSON.stringify({
+            analyticsToken: { access_token: 'token-123', expires_in: 180 },
+            jsessionid: 'abc123',
+          }),
+        };
+      }
+
+      if (url.includes('/RouteView/Summary?criteria=')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            content: [{
+              route: { id: 987, key: '6103048379' },
+            }],
+          }),
+        };
+      }
+
+      if (url.includes('/Route/restrictions?criteria=')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            stopView: [
+              {
+                stop: {
+                  id: 'STOP-1',
+                  key: 'STOPKEY-1',
+                  description: 'Cliente fallback',
+                  actualArrival: '2026-04-08T10:00:00Z',
+                },
+                location: {
+                  key: 'CLI-1',
+                  description: 'Cliente fallback',
+                },
+              },
+            ],
+          }),
+        };
+      }
+
+      if (url.includes('/StopView/restrictions?criteria=')) {
+        return {
+          status: 500,
+          ok: false,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            errorMessages: [{ resource: { value: 'Restrição violada' } }],
+          }),
+        };
+      }
+
+      if (url.includes('/Order/restrictions?criteria=')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            content: [{ number: 'NF-1' }],
+          }),
+        };
+      }
+
+      throw new Error('URL inesperada no teste: ' + url);
+    },
+  });
+
+  const bundle = await client.getRouteBundleByKey('6103048379', {
+    includeOrders: true,
+    includeSignatures: false,
+    maxResults: 1,
+  });
+
+  assert.equal(bundle.routeKey, '6103048379');
+  assert.equal(bundle.routeId, 987);
+  assert.equal(Array.isArray(bundle.stops), true);
+  assert.equal(bundle.stops.length, 1);
+  assert.equal(bundle.stops[0].stopId, 'STOP-1');
+  assert.equal(bundle.stops[0].stopKey, 'STOPKEY-1');
+  assert.equal(bundle.stops[0].locationKey, 'CLI-1');
+  assert.equal(bundle.stops[0].locationName, 'Cliente fallback');
+  assert.deepEqual(bundle.stops[0].orders.content[0], { number: 'NF-1' });
+  assert.ok(calls.some((entry) => entry.url.includes('/StopView/restrictions?criteria=')),
+    'deve tentar StopView antes do fallback');
+});
+
 // ─── Testes do router Express (integração com request/response stubs) ────────
 
 function makeRes() {

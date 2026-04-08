@@ -21,6 +21,15 @@ function extractRows(data) {
   return Array.isArray(data) ? data : (data && (data.content || data.rows || data.items) || []);
 }
 
+function firstDefined(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && value !== '') {
+      return value;
+    }
+  }
+  return null;
+}
+
 function buildSingleFilterCriteria(attr, value, matchMode, includeMatchMode) {
   const filter = {
     attr: String(attr),
@@ -165,6 +174,73 @@ function stopViewRestrictionsFilters() {
     'distributionCenter.*',
     'pendingReasons.*',
   ];
+}
+
+function normalizeStopsFromRoute(summaryRow, routeDetails) {
+  const routeStops =
+    (routeDetails && (routeDetails.stopView || routeDetails.stopViews)) ||
+    (summaryRow && (summaryRow.stopView || summaryRow.stopViews)) ||
+    [];
+
+  return routeStops.map((item) => {
+    if (item && item.stop) {
+      const stop = Object.assign({}, item.stop);
+      if (!stop.location && item.location) {
+        stop.location = item.location;
+      }
+      if (!stop.locationKey && item.location && item.location.key) {
+        stop.locationKey = item.location.key;
+      }
+      return stop;
+    }
+
+    return item;
+  });
+}
+
+function buildStopContext(stop, detail) {
+  const location = firstDefined(
+    detail && detail.location,
+    stop && stop.location,
+    detail && detail.stop && detail.stop.location,
+    stop && stop.customer,
+    detail && detail.customer
+  ) || {};
+
+  const locationId = firstDefined(
+    location.id,
+    stop && stop.locationId,
+    detail && detail.locationId
+  );
+
+  const locationKey = firstDefined(
+    location.key,
+    location.alternativeKey,
+    stop && stop.locationKey,
+    detail && detail.locationKey,
+    stop && stop.key,
+    detail && detail.stop && detail.stop.key
+  );
+
+  const locationName = firstDefined(
+    location.description,
+    location.name,
+    stop && stop.description,
+    detail && detail.description
+  );
+
+  return {
+    location,
+    locationId,
+    locationKey,
+    locationName,
+    signatureTarget: firstDefined(
+      locationKey,
+      stop && stop.key,
+      detail && detail.stop && detail.stop.key,
+      stop && stop.id
+    ),
+  };
 }
 
 function buildHeaders(config, session) {
@@ -378,14 +454,33 @@ function createGreenmileLocalClient(options = {}) {
 
     const routeId = summaryRow.route.id;
     const routeDetails = await getRouteRestrictionsByRouteId(routeId);
-    const stopViewsResponses = await getStopViewsByRouteIds([routeId]);
-    const stops = extractRows(stopViewsResponses[0]).map((item) => (item && item.stop ? item.stop : item));
+    let stops = [];
+    try {
+      const stopViewsResponses = await getStopViewsByRouteIds([routeId]);
+      stops = extractRows(stopViewsResponses[0]).map((item) => (item && item.stop ? item.stop : item));
+    } catch (err) {
+      stops = [];
+    }
+
+    if (!stops.length) {
+      stops = normalizeStopsFromRoute(summaryRow, routeDetails);
+    }
 
     const enrichedStops = stops.map((stop) => ({
       stop,
       stopId: stop && stop.id ? stop.id : null,
       stopKey: stop && stop.key ? stop.key : null,
     }));
+
+    enrichedStops.forEach((item) => {
+      if (item.context) return;
+      item.context = buildStopContext(item.stop, item.detail);
+      item.location = item.context.location;
+      item.locationId = item.context.locationId;
+      item.locationKey = item.context.locationKey;
+      item.locationName = item.context.locationName;
+      item.signatureTarget = item.context.signatureTarget;
+    });
 
     if (optionsArg.includeOrders !== false) {
       const validStopIds = enrichedStops.filter((item) => item.stopId).map((item) => item.stopId);
@@ -402,7 +497,7 @@ function createGreenmileLocalClient(options = {}) {
       await Promise.all(enrichedStops.map(async (item) => {
         if (!item.stopId) return;
         try {
-          item.signature = await getRouteStopSignature(routeId, item.stopKey || item.stopId);
+          item.signature = await getRouteStopSignature(routeId, item.signatureTarget || item.stopKey || item.stopId);
         } catch (err) {
           item.signatureError = err && err.message ? err.message : String(err);
         }
