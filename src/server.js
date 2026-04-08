@@ -1,11 +1,14 @@
 const express = require("express");
+const path = require("path");
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
+const publicDir = path.join(__dirname, "..", "public");
 
 app.use(express.json());
+app.use(express.static(publicDir));
 
-app.get("/", (req, res) => {
+app.get("/api", (req, res) => {
   res.json({
     ok: true,
     mensagem: "API no ar",

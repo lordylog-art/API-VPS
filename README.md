@@ -11,7 +11,8 @@ npm start
 
 ## Rotas
 
-- `GET /`
+- `GET /` (pagina HTML)
+- `GET /api`
 - `GET /health`
 - `GET /users/123`
 - `POST /echo`

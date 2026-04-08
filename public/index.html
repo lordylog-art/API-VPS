@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>API VPS</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #eef4ff;
+        --panel: #ffffff;
+        --text: #17324d;
+        --muted: #5f748a;
+        --accent: #0b84f3;
+        --accent-dark: #075fb0;
+        --border: #cfe0f5;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background:
+          radial-gradient(circle at top left, #dcecff 0%, transparent 35%),
+          linear-gradient(135deg, #eef4ff 0%, #f8fbff 50%, #e9f7ff 100%);
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .card {
+        width: min(720px, 100%);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 32px;
+        box-shadow: 0 18px 60px rgba(9, 44, 84, 0.12);
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(2rem, 4vw, 3rem);
+      }
+
+      p {
+        margin: 0 0 16px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: #ebf7ee;
+        color: #18794e;
+        font-weight: 600;
+      }
+
+      .status::before {
+        content: "";
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #22c55e;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin: 28px 0;
+      }
+
+      .item {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 18px;
+        background: #fbfdff;
+      }
+
+      .item strong {
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      code {
+        font-family: Consolas, "Courier New", monospace;
+        color: var(--accent-dark);
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <span class="status">Servidor online</span>
+      <h1>API VPS no ar</h1>
+      <p>
+        Esta pagina esta sendo servida pela sua aplicacao Node.js no Windows VPS.
+        Se voce abriu isso pelo navegador, o acesso web esta funcionando.
+      </p>
+
+      <section class="grid">
+        <article class="item">
+          <strong>Pagina principal</strong>
+          <div><code>/</code></div>
+        </article>
+        <article class="item">
+          <strong>Status da API</strong>
+          <div><a href="/health">/health</a></div>
+        </article>
+        <article class="item">
+          <strong>Resposta JSON</strong>
+          <div><a href="/api">/api</a></div>
+        </article>
+        <article class="item">
+          <strong>Exemplo de usuario</strong>
+          <div><a href="/users/123">/users/123</a></div>
+        </article>
+      </section>
+
+      <p>
+        Agora voce pode acessar pelo navegador com
+        <code>http://SEU-IP:3000</code>.
+      </p>
+    </main>
+  </body>
+</html>
