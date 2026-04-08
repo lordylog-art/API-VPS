@@ -503,6 +503,173 @@ test('createGreenmileLocalClient.getRouteBundleByKey enriquece stop com Stop/Det
   assert.ok(calls.some((url) => url.includes('/Route/777/Stop/CLIENTE-ASSINATURA/Signature')));
 });
 
+test('createGreenmileLocalClient.getRouteBundleByKey usa os mesmos filtros do Apps Script para StopView e Order', async () => {
+  const captured = {
+    stopViewCriteria: null,
+    orderCriteria: null,
+  };
+
+  const client = createGreenmileLocalClient({
+    username: 'operacao',
+    password: 'segredo',
+    config: {
+      baseUrl: 'https://3coracoes.greenmile.com',
+      module: 'LIVE',
+    },
+    fetchImpl: async (url) => {
+      if (url.endsWith('/login')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: {
+            get: (name) => (String(name).toLowerCase() === 'set-cookie' ? 'JSESSIONID=abc123; Path=/' : null),
+          },
+          text: async () => JSON.stringify({
+            analyticsToken: { access_token: 'token-123', expires_in: 180 },
+            jsessionid: 'abc123',
+          }),
+        };
+      }
+
+      if (url.includes('/RouteView/Summary?criteria=')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            content: [{
+              route: { id: 777, key: '6103048379' },
+            }],
+          }),
+        };
+      }
+
+      if (url.includes('/Route/restrictions?criteria=')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            stopView: [
+              {
+                stop: { id: 'STOP-1', key: 'STOPKEY-1', description: 'Cliente 1' },
+              },
+            ],
+          }),
+        };
+      }
+
+      if (url.includes('/StopView/restrictions?criteria=')) {
+        captured.stopViewCriteria = JSON.parse(decodeURIComponent(url.split('?criteria=')[1]));
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            content: [{
+              stop: { id: 'STOP-1', key: 'STOPKEY-1', description: 'Cliente 1' },
+            }],
+          }),
+        };
+      }
+
+      if (url.includes('/Stop/STOP-1/Detail')) {
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({
+            id: 'STOP-1',
+            location: {
+              key: 'CLI-1',
+              description: 'Cliente 1',
+            },
+          }),
+        };
+      }
+
+      if (url.includes('/Order/restrictions?criteria=')) {
+        captured.orderCriteria = JSON.parse(decodeURIComponent(url.split('?criteria=')[1]));
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          text: async () => JSON.stringify({ content: [] }),
+        };
+      }
+
+      throw new Error('URL inesperada no teste: ' + url);
+    },
+  });
+
+  await client.getRouteBundleByKey('6103048379', {
+    includeOrders: true,
+    includeSignatures: false,
+    includeStopDetails: true,
+    maxResults: 1,
+  });
+
+  assert.deepEqual(captured.stopViewCriteria, {
+    filters: [
+      'id',
+      '*',
+      'stop.*',
+      'stop.location.*',
+      'stop.location.locationType.*',
+      'stop.stopType.*',
+      'stop.cancelCode.*',
+      'stop.redeliveryStop.*',
+      'stop.redeliveryStop.location.key*',
+      'stop.undeliverableCode.*',
+      'route.origLatitude',
+      'route.origLongitude',
+      'route.destLatitude',
+      'route.destLongitude',
+      'route.origin.*',
+      'route.destination.*',
+      'route.organization.id',
+      'route.proactiveRouteOptConfig',
+    ],
+    including: ['geofence'],
+  });
+
+  assert.deepEqual(captured.orderCriteria, {
+    filters: [
+      '*',
+      'id',
+      'number',
+      'lineItems.sku.id',
+      'lineItems.sku.description',
+      'lineItems.plannedSize1',
+      'lineItems.plannedSize2',
+      'lineItems.plannedSize3',
+      'lineItems.actualSize1',
+      'lineItems.actualSize2',
+      'lineItems.actualSize3',
+      'lineItems.plannedPickupSize1',
+      'lineItems.plannedPickupSize2',
+      'lineItems.plannedPickupSize3',
+      'lineItems.actualPickupSize1',
+      'lineItems.actualPickupSize2',
+      'lineItems.actualPickupSize3',
+      'lineItems.damagedSize1',
+      'lineItems.damagedSize2',
+      'lineItems.damagedSize3',
+      'lineItems.deliveryReasonCode.id',
+      'lineItems.deliveryReasonCode.description',
+      'lineItems.overReasonCode.id',
+      'lineItems.overReasonCode.description',
+      'lineItems.shortReasonCode.id',
+      'lineItems.shortReasonCode.description',
+      'lineItems.damagedReasonCode.id',
+      'lineItems.damagedReasonCode.description',
+      'lineItems.pickupReasonCode.id',
+      'lineItems.pickupReasonCode.description',
+      'lineItems.lineItemID',
+    ],
+  });
+});
+
 // ─── Testes do router Express (integração com request/response stubs) ────────
 
 function makeRes() {

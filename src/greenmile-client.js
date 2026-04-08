@@ -153,26 +153,29 @@ function orderRestrictionsFilters() {
     'lineItems.pickupReasonCode.id',
     'lineItems.pickupReasonCode.description',
     'lineItems.lineItemID',
-    'invoiceValue',
-    'totalValue',
-    'orderValue',
-    'lineItems.invoiceValue',
-    'lineItems.totalValue',
   ];
 }
 
 function stopViewRestrictionsFilters() {
   return [
+    'id',
     '*',
     'stop.*',
-    'location.*',
-    'plannedLocation.*',
-    'actualLocation.*',
-    'route.id',
-    'route.key',
-    'deliveryReasonCode.*',
-    'distributionCenter.*',
-    'pendingReasons.*',
+    'stop.location.*',
+    'stop.location.locationType.*',
+    'stop.stopType.*',
+    'stop.cancelCode.*',
+    'stop.redeliveryStop.*',
+    'stop.redeliveryStop.location.key*',
+    'stop.undeliverableCode.*',
+    'route.origLatitude',
+    'route.origLongitude',
+    'route.destLatitude',
+    'route.destLongitude',
+    'route.origin.*',
+    'route.destination.*',
+    'route.organization.id',
+    'route.proactiveRouteOptConfig',
   ];
 }
 
