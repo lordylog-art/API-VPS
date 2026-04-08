@@ -1,0 +1,18 @@
+{
+  "name": "api-vps",
+  "version": "1.0.0",
+  "description": "API Node.js simples para rodar em um Windows VPS",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "echo \"Sem testes configurados\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
